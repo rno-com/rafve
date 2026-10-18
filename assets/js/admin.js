@@ -473,7 +473,7 @@
         e.preventDefault();
 
         const f = e.currentTarget;
-        const n = f.elements.whatsapp.value.trim();
+        const n = 6285736607893;
         const low = Number(f.elements.lowStock.value);
 
         if (n && !RAFVE.validWhatsApp(n)) {
