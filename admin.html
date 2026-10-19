@@ -208,13 +208,25 @@
                 </label>
             </div>
 
-            <label for="product-image-file">Foto utama produk</label>
-            <input type="file" id="product-image-file" name="imageFile"
-                   accept="image/jpeg,image/png,image/webp">
+            <label for="product-image-file">Foto produk (maksimal 10 foto)</label>
+
+            <input
+                type="file"
+                id="product-image-file"
+                name="imageFile"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+            >
+
             <input type="hidden" name="image" id="product-image">
-            <p class="muted">Unggah JPG, PNG, atau WebP (maksimal 5 MB).
-               Foto disimpan ke Supabase Storage. Saat edit, pilih file baru
-               hanya jika ingin mengganti foto.</p>
+            <input type="hidden" name="gallery" id="product-gallery">
+
+            <p class="muted">
+                Pilih hingga 10 foto sekaligus. Format JPG, PNG, atau WebP,
+                maksimal 5 MB per foto. Foto pertama menjadi foto utama,
+                sedangkan foto berikutnya menjadi galeri produk.
+                Foto disimpan ke Supabase Storage.
+            </p>
 
             <div
                 id="image-preview"
@@ -223,14 +235,6 @@
             >
                 Preview foto akan tampil di sini
             </div>
-
-            <label>
-                URL galeri (pisahkan dengan koma)
-                <input
-                    name="gallery"
-                    placeholder="https://..., https://..."
-                >
-            </label>
 
             <label>
                 Ukuran (pisahkan koma)

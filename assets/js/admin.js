@@ -9,21 +9,66 @@
         t.textContent = msg; t.classList.add('show');
         clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
     }
-    function preview(src) {
-        if (!imagePreview) return;
-        imagePreview.replaceChildren();
-        if (!src) { imagePreview.textContent = 'Preview foto akan tampil di sini'; return; }
-        const img = document.createElement('img'); img.src = src; img.alt = 'Preview foto produk';
-        img.onerror = () => { imagePreview.textContent = 'Foto tidak dapat dimuat.'; };
-        imagePreview.appendChild(img);
+
+function preview(sources) {
+    if (!imagePreview) return;
+
+    imagePreview.replaceChildren();
+
+    if (!sources || sources.length === 0) {
+        imagePreview.textContent = 'Preview foto akan tampil di sini';
+        return;
     }
-    imageInput?.addEventListener('change', () => {
-        const file = imageInput.files?.[0]; if (!file) return;
-        if (!['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 5*1024*1024) {
-            imageInput.value = ''; toast('Gunakan JPG, PNG, atau WebP maksimal 5 MB.'); return;
+
+    sources.forEach((src, index) => {
+        if (!src) return;
+
+        const item = document.createElement('div');
+        item.className = 'image-preview-item';
+
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = `Foto produk ${index + 1}`;
+
+        item.appendChild(img);
+
+        if (index === 0) {
+            const label = document.createElement('div');
+            label.className = 'main-photo-label';
+            label.textContent = 'Foto utama';
+            item.appendChild(label);
         }
-        imageHidden.value = ''; preview(URL.createObjectURL(file));
+
+        imagePreview.appendChild(item);
     });
+}
+
+imageInput?.addEventListener('change', () => {
+    const files = Array.from(imageInput.files || []);
+
+    if (files.length > 10) {
+        imageInput.value = '';
+        preview([]);
+        toast('Maksimal 10 foto untuk satu produk.');
+        return;
+    }
+
+    const invalidFile = files.find(file =>
+        !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
+        file.size > 5 * 1024 * 1024
+    );
+
+    if (invalidFile) {
+        imageInput.value = '';
+        preview([]);
+        toast('Gunakan JPG, PNG, atau WebP maksimal 5 MB per foto.');
+        return;
+    }
+
+    imageHidden.value = '';
+    preview(files.map(file => URL.createObjectURL(file)));
+});
+
     // ==========================================
     // DASHBOARD DAN TABEL PRODUK
     // ==========================================
@@ -179,7 +224,6 @@
             description: p.description,
             price: p.price,
             salePrice: p.salePrice || '',
-            gallery: (p.gallery || []).join(', '),
             sizes: (p.sizes || []).join(', '),
             colors: (p.colors || []).join(', '),
             stock: p.stock
@@ -191,7 +235,10 @@
 
         imageHidden.value = p.image || '';
         if (imageInput) imageInput.value = '';
-        preview(p.image || '');
+        preview([
+            p.image,
+            ...(p.gallery || [])
+        ].filter(Boolean));
 
         form.elements.active.checked = !!p.active;
         form.elements.isNew.checked = !!p.isNew;
@@ -217,7 +264,7 @@
 
         imageHidden.value = '';
         if (imageInput) imageInput.value = '';
-        preview('');
+        preview([]);
 
         dialog.showModal();
     }
@@ -241,9 +288,11 @@
             const fd = new FormData(form), id = String(fd.get('id') || '').trim();
             const original = String(fd.get('originalId') || '');
             const price = Number(fd.get('price')), sale = Number(fd.get('salePrice') || 0);
-            const stock = Number(fd.get('stock')), imageFile = imageInput?.files?.[0] || null;
+            const stock = Number(fd.get('stock'));
+            const imageFiles = Array.from(imageInput?.files || []);
             const oldProduct = RAFVE.getProducts().find(p => p.id === original);
-            let image = imageHidden.value.trim() || oldProduct?.image || '';
+            let image = oldProduct?.image || imageHidden.value.trim() || '';
+            let gallery = oldProduct?.gallery || [];
             if (!id || !String(fd.get('name') || '').trim() || !String(fd.get('category') || '').trim()) {
                 toast('Lengkapi ID, nama, dan kategori.'); return;
             }
@@ -251,14 +300,26 @@
                 toast('Harga tidak valid.'); return;
             }
             if (!Number.isInteger(stock) || stock < 0) { toast('Stok harus bilangan bulat nonnegatif.'); return; }
-            if (!imageFile && !image) { toast('Pilih foto utama produk.'); return; }
+            if (imageFiles.length === 0 && !image) {
+                toast('Pilih minimal satu foto produk.');
+                return;
+            }
             const current = RAFVE.getProducts();
             if (current.some(p => p.id === id && p.id !== original)) { toast('ID produk sudah digunakan.'); return; }
-            if (imageFile) image = await RAFVE.uploadProductImage(imageFile, id);
+            if (imageFiles.length > 0) {
+                const uploadedImages = await Promise.all(
+                    imageFiles.map((file, index) =>
+                        RAFVE.uploadProductImage(file, `${id}-${Date.now()}-${index}`)
+                    )
+                );
+
+                image = uploadedImages[0];
+                gallery = uploadedImages.slice(1);
+            }
             const product = {
                 id, name: String(fd.get('name')).trim(), category: String(fd.get('category')).trim(),
                 description: String(fd.get('description') || ''), price, salePrice: sale, image,
-                gallery: String(fd.get('gallery') || '').split(',').map(x=>x.trim()).filter(Boolean),
+                gallery,
                 sizes: String(fd.get('sizes') || '').split(',').map(x=>x.trim()).filter(Boolean),
                 colors: String(fd.get('colors') || '').split(',').map(x=>x.trim()).filter(Boolean),
                 stock, active: form.elements.active.checked, isNew: form.elements.isNew.checked,
