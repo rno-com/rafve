@@ -1,4 +1,6 @@
-(function () {
+(async function () {
+    try { await RAFVE.loadProductsFromSupabase(); }
+    catch (error) { console.error('Gagal memuat katalog dari Supabase:', error); }
     const $ = selector => document.querySelector(selector);
 
     const fields = {

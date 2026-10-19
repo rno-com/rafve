@@ -1,5 +1,7 @@
 
 (async function () {
+    try { await RAFVE.loadProductsFromSupabase(); }
+    catch (error) { console.error('Gagal memuat produk dari Supabase:', error); }
     const $ = s => document.querySelector(s);
 
     // ==========================================

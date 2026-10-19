@@ -209,18 +209,12 @@
             </div>
 
             <label for="product-image-file">Foto utama produk</label>
-            <input
-                type="file"
-                id="product-image-file"
-                name="imageFile"
-                accept="image/jpeg,image/png,image/webp"
-            >
+            <input type="file" id="product-image-file" name="imageFile"
+                   accept="image/jpeg,image/png,image/webp">
             <input type="hidden" name="image" id="product-image">
-            <p class="muted">
-                Unggah foto JPG, PNG, atau WebP langsung dari perangkat.
-                Maksimal 5 MB. Foto disimpan di Supabase Storage.
-                Saat mengedit produk, pilih file baru hanya jika ingin mengganti foto.
-            </p>
+            <p class="muted">Unggah JPG, PNG, atau WebP (maksimal 5 MB).
+               Foto disimpan ke Supabase Storage. Saat edit, pilih file baru
+               hanya jika ingin mengganti foto.</p>
 
             <div
                 id="image-preview"

@@ -1,93 +1,29 @@
 (function () {
     const $ = s => document.querySelector(s);
-    const dialog = $('#product-dialog');
-    const form = $('#product-form');
-    const imageInput = $('#product-image-file');
-    const imageHidden = $('#product-image');
+    const dialog = $('#product-dialog'), form = $('#product-form');
+    const imageInput = $('#product-image-file'), imageHidden = $('#product-image');
     const imagePreview = $('#image-preview');
     let toastTimer;
-
-    const STORAGE_BUCKET = 'product-images';
-    const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-    const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-
     function toast(msg) {
-        const t = $('#toast');
-        t.textContent = msg;
-        t.classList.add('show');
-        clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+        const t = $('#toast'); if (!t) return;
+        t.textContent = msg; t.classList.add('show');
+        clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
     }
-
     function preview(src) {
         if (!imagePreview) return;
         imagePreview.replaceChildren();
-        if (!src) {
-            imagePreview.textContent = 'Preview foto akan tampil di sini';
-            return;
-        }
-        const img = document.createElement('img');
-        img.src = src;
-        img.alt = 'Preview foto produk';
-        img.onerror = () => {
-            imagePreview.textContent = 'Foto tidak dapat dimuat. Silakan pilih file lain.';
-        };
+        if (!src) { imagePreview.textContent = 'Preview foto akan tampil di sini'; return; }
+        const img = document.createElement('img'); img.src = src; img.alt = 'Preview foto produk';
+        img.onerror = () => { imagePreview.textContent = 'Foto tidak dapat dimuat.'; };
         imagePreview.appendChild(img);
     }
-
-    if (imageInput) {
-        imageInput.addEventListener('change', () => {
-            const file = imageInput.files && imageInput.files[0];
-            if (!file) return;
-            if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-                imageInput.value = '';
-                toast('Format foto harus JPG, PNG, atau WebP.');
-                return;
-            }
-            if (file.size > MAX_IMAGE_SIZE) {
-                imageInput.value = '';
-                toast('Ukuran foto maksimal 5 MB.');
-                return;
-            }
-            imageHidden.value = '';
-            preview(URL.createObjectURL(file));
-        });
-    }
-
-    async function uploadProductImage(file, productId) {
-        const client = window.rafveSupabase;
-        if (!client) throw new Error('Klien Supabase belum tersedia.');
-        if (!file) throw new Error('Pilih file foto terlebih dahulu.');
-        if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-            throw new Error('Format foto harus JPG, PNG, atau WebP.');
+    imageInput?.addEventListener('change', () => {
+        const file = imageInput.files?.[0]; if (!file) return;
+        if (!['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 5*1024*1024) {
+            imageInput.value = ''; toast('Gunakan JPG, PNG, atau WebP maksimal 5 MB.'); return;
         }
-        if (file.size > MAX_IMAGE_SIZE) {
-            throw new Error('Ukuran foto maksimal 5 MB.');
-        }
-
-        const extensions = {
-            'image/jpeg': 'jpg',
-            'image/png': 'png',
-            'image/webp': 'webp'
-        };
-        const safeId = String(productId || 'product')
-            .toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
-        const path = `${safeId}/${Date.now()}.${extensions[file.type]}`;
-
-        const { error } = await client.storage
-            .from(STORAGE_BUCKET)
-            .upload(path, file, {
-                cacheControl: '3600',
-                upsert: false,
-                contentType: file.type
-            });
-        if (error) throw error;
-
-        const { data } = client.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-        if (!data?.publicUrl) throw new Error('URL publik foto tidak berhasil dibuat.');
-        return data.publicUrl;
-    }
-
+        imageHidden.value = ''; preview(URL.createObjectURL(file));
+    });
     // ==========================================
     // DASHBOARD DAN TABEL PRODUK
     // ==========================================
@@ -192,7 +128,7 @@
         $('#admin-table')
             .querySelectorAll('[data-toggle]')
             .forEach(b => {
-                b.onclick = () => {
+                b.onclick = async () => {
                     const products = RAFVE.getProducts();
                     const p = products.find(
                         x => x.id === b.dataset.toggle
@@ -201,28 +137,25 @@
                     if (!p) return;
 
                     p.active = !p.active;
-                    RAFVE.saveProducts(products);
-                    render();
-                    toast('Status produk diperbarui.');
+                    try {
+                        await RAFVE.upsertProductToSupabase(p);
+                        render(); toast('Status produk diperbarui.');
+                    } catch (error) { console.error(error); toast('Gagal menyimpan status ke Supabase.'); }
                 };
             });
 
         $('#admin-table')
             .querySelectorAll('[data-delete]')
             .forEach(b => {
-                b.onclick = () => {
+                b.onclick = async () => {
                     if (confirm(
                         'Hapus produk ini? Item di keranjang pelanggan ' +
                         'akan ditandai tidak tersedia.'
                     )) {
-                        RAFVE.saveProducts(
-                            RAFVE.getProducts().filter(
-                                p => p.id !== b.dataset.delete
-                            )
-                        );
-
-                        render();
-                        toast('Produk dihapus.');
+                        try {
+                            await RAFVE.deleteProductFromSupabase(b.dataset.delete);
+                            render(); toast('Produk dihapus dari Supabase.');
+                        } catch (error) { console.error(error); toast('Gagal menghapus produk dari Supabase.'); }
                     }
                 };
             });
@@ -237,7 +170,6 @@
         if (!p) return;
 
         form.reset();
-
 
         const values = {
             originalId: p.id,
@@ -288,7 +220,6 @@
         preview('');
 
         dialog.showModal();
-
     }
 
     $('#add-new').onclick = newProduct;
@@ -303,120 +234,44 @@
 
     form.addEventListener('submit', async e => {
         e.preventDefault();
-        const submitButton = form.querySelector('button[type="submit"]');
-        const oldButtonText = submitButton?.textContent;
-        if (submitButton) {
-            submitButton.disabled = true;
-            submitButton.textContent = 'Mengunggah dan menyimpan...';
-        }
+        const button = form.querySelector('button[type="submit"]');
+        const oldText = button?.textContent;
+        if (button) { button.disabled = true; button.textContent = 'Menyimpan...'; }
         try {
-
-        const fd = new FormData(form);
-
-        const id = String(fd.get('id') || '').trim();
-        const original = String(
-            fd.get('originalId') || ''
-        );
-
-        const price = Number(fd.get('price'));
-        const sale = Number(fd.get('salePrice') || 0);
-        const stock = Number(fd.get('stock'));
-        let image = String(fd.get('image') || '').trim();
-        const imageFile = imageInput?.files?.[0] || null;
-
-        if (
-            !id ||
-            !String(fd.get('name') || '').trim() ||
-            !String(fd.get('category') || '').trim()
-        ) {
-            toast('Lengkapi ID, nama, dan kategori.');
-            return;
-        }
-
-        if (
-            !Number.isFinite(price) ||
-            price < 0 ||
-            !Number.isFinite(sale) ||
-            sale < 0 ||
-            (sale > 0 && sale > price)
-        ) {
-            toast('Harga tidak valid. Diskon tidak boleh melebihi harga normal.');
-            return;
-        }
-
-        if (!Number.isInteger(stock) || stock < 0) {
-            toast('Stok harus bilangan bulat nonnegatif.');
-            return;
-        }
-
-        const existingProduct = RAFVE.getProducts().find(p => p.id === original);
-        if (!imageFile && !image && !existingProduct?.image) {
-            toast('Pilih foto utama produk terlebih dahulu.');
-            return;
-        }
-
-        let ps = RAFVE.getProducts();
-
-        if (ps.some(p => p.id === id && p.id !== original)) {
-            toast('ID produk sudah digunakan.');
-            return;
-        }
-
-        if (imageFile) {
-            try {
-                image = await uploadProductImage(imageFile, id);
-            } catch (uploadError) {
-                console.error('Gagal mengunggah foto:', uploadError);
-                toast('Foto gagal diunggah. Periksa login admin, bucket, dan policy Supabase.');
-                return;
+            const fd = new FormData(form), id = String(fd.get('id') || '').trim();
+            const original = String(fd.get('originalId') || '');
+            const price = Number(fd.get('price')), sale = Number(fd.get('salePrice') || 0);
+            const stock = Number(fd.get('stock')), imageFile = imageInput?.files?.[0] || null;
+            const oldProduct = RAFVE.getProducts().find(p => p.id === original);
+            let image = imageHidden.value.trim() || oldProduct?.image || '';
+            if (!id || !String(fd.get('name') || '').trim() || !String(fd.get('category') || '').trim()) {
+                toast('Lengkapi ID, nama, dan kategori.'); return;
             }
-        } else if (!image && existingProduct) {
-            image = existingProduct.image || '';
-        }
-
-        const p = {
-            id,
-            name: String(fd.get('name')).trim(),
-            category: String(fd.get('category')).trim(),
-            description: String(fd.get('description') || ''),
-            price,
-            salePrice: sale,
-            image,
-            gallery: String(fd.get('gallery') || '')
-                .split(',').map(x => x.trim()).filter(Boolean),
-            sizes: String(fd.get('sizes') || '')
-                .split(',').map(x => x.trim()).filter(Boolean),
-            colors: String(fd.get('colors') || '')
-                .split(',').map(x => x.trim()).filter(Boolean),
-            stock,
-            active: form.elements.active.checked,
-            isNew: form.elements.isNew.checked,
-            createdAt: original
-                ? (ps.find(x => x.id === original)?.createdAt || Date.now())
-                : Date.now()
-        };
-
-        if (!p.sizes.length || !p.colors.length) {
-            toast('Isi minimal satu ukuran dan satu warna.');
-            return;
-        }
-
-        if (original) {
-            ps = ps.map(x => x.id === original ? p : x);
-        } else {
-            ps.unshift(p);
-        }
-
-        if (RAFVE.saveProducts(ps)) {
-            dialog.close();
-            render();
-            toast(original ? 'Perubahan produk disimpan.' : 'Produk baru berhasil disimpan.');
-        }
+            if (!Number.isFinite(price) || price < 0 || !Number.isFinite(sale) || sale < 0 || (sale > 0 && sale > price)) {
+                toast('Harga tidak valid.'); return;
+            }
+            if (!Number.isInteger(stock) || stock < 0) { toast('Stok harus bilangan bulat nonnegatif.'); return; }
+            if (!imageFile && !image) { toast('Pilih foto utama produk.'); return; }
+            const current = RAFVE.getProducts();
+            if (current.some(p => p.id === id && p.id !== original)) { toast('ID produk sudah digunakan.'); return; }
+            if (imageFile) image = await RAFVE.uploadProductImage(imageFile, id);
+            const product = {
+                id, name: String(fd.get('name')).trim(), category: String(fd.get('category')).trim(),
+                description: String(fd.get('description') || ''), price, salePrice: sale, image,
+                gallery: String(fd.get('gallery') || '').split(',').map(x=>x.trim()).filter(Boolean),
+                sizes: String(fd.get('sizes') || '').split(',').map(x=>x.trim()).filter(Boolean),
+                colors: String(fd.get('colors') || '').split(',').map(x=>x.trim()).filter(Boolean),
+                stock, active: form.elements.active.checked, isNew: form.elements.isNew.checked,
+                createdAt: oldProduct?.createdAt || Date.now()
+            };
+            if (!product.sizes.length || !product.colors.length) { toast('Isi minimal satu ukuran dan satu warna.'); return; }
+            await RAFVE.upsertProductToSupabase(product);
+            dialog.close(); render(); toast('Produk berhasil disimpan ke Supabase.');
+        } catch (error) {
+            console.error('Gagal menyimpan produk:', error);
+            toast(`Gagal menyimpan: ${error.message || 'periksa izin Supabase'}`);
         } finally {
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.textContent = oldButtonText || 'Simpan Produk';
-            }
+            if (button) { button.disabled = false; button.textContent = oldText || 'Simpan Produk'; }
         }
     });
 
@@ -558,8 +413,16 @@ $('#settings-form').addEventListener('submit', async e => {
         };
     });
 
-    loadSettings();
-    render();
+    (async () => {
+        try {
+            await RAFVE.loadProductsFromSupabase();
+        } catch (error) {
+            console.error('Gagal memuat produk dari Supabase:', error);
+            toast('Produk gagal dimuat dari Supabase. Periksa izin tabel.');
+        }
+        await loadSettings();
+        render();
+    })();
 
     window.addEventListener('rafve:datachange', render);
 })();
