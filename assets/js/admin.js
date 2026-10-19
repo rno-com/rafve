@@ -2,157 +2,90 @@
     const $ = s => document.querySelector(s);
     const dialog = $('#product-dialog');
     const form = $('#product-form');
-    const imageSelect = $('#product-image');
+    const imageInput = $('#product-image-file');
+    const imageHidden = $('#product-image');
     const imagePreview = $('#image-preview');
-    const refreshImagesButton = $('#refresh-images');
-
     let toastTimer;
 
-    // GANTI dengan username GitHub kamu.
-    const GITHUB_OWNER = 'rno-com';
-    const GITHUB_REPO = 'rafve';
-    const GITHUB_BRANCH = 'main';
+    const STORAGE_BUCKET = 'product-images';
+    const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+    const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
     function toast(msg) {
         const t = $('#toast');
         t.textContent = msg;
         t.classList.add('show');
-
         clearTimeout(toastTimer);
-        toastTimer = setTimeout(
-            () => t.classList.remove('show'),
-            2600
-        );
+        toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
     }
 
-    // ==========================================
-    // DAFTAR FOTO DARI GITHUB
-    // ==========================================
-
-    async function loadGitHubImages() {
-        if (!imageSelect) return false;
-
-        imageSelect.disabled = true;
-        imageSelect.innerHTML =
-            '<option value="">Memuat foto dari GitHub...</option>';
-
-        try {
-            const apiUrl =
-                `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}` +
-                `/contents/assets/images?ref=${GITHUB_BRANCH}`;
-
-            const response = await fetch(apiUrl);
-
-            if (!response.ok) {
-                throw new Error(
-                    `GitHub API error: ${response.status}`
-                );
-            }
-
-            const files = await response.json();
-
-            if (!Array.isArray(files)) {
-                throw new Error('Format daftar file GitHub tidak valid.');
-            }
-
-            const images = files
-                .filter(file =>
-                    file.type === 'file' &&
-                    /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(file.name)
-                )
-                .sort((a, b) => a.name.localeCompare(b.name));
-
-            imageSelect.innerHTML =
-                '<option value="">Pilih foto produk</option>';
-
-            images.forEach(file => {
-                const option = document.createElement('option');
-
-                // URL langsung gambar dari GitHub.
-                option.value = file.download_url;
-                option.textContent = file.name;
-
-                imageSelect.appendChild(option);
-            });
-
-            if (images.length === 0) {
-                imageSelect.innerHTML =
-                    '<option value="">Belum ada foto di folder</option>';
-            }
-
-            imageSelect.disabled = images.length === 0;
-            return images.length > 0;
-
-        } catch (error) {
-            console.error('Gagal memuat foto GitHub:', error);
-
-            imageSelect.innerHTML =
-                '<option value="">Gagal memuat foto</option>';
-
-            imageSelect.disabled = false;
-            toast('Gagal memuat foto. Periksa repository GitHub.');
-            return false;
-        }
-    }
-
-    // Memastikan foto lama tetap dapat dipilih saat edit.
-    function ensureImageOption(src) {
-        if (!src || !imageSelect) return;
-
-        const exists = Array.from(imageSelect.options)
-            .some(option => option.value === src);
-
-        if (!exists) {
-            const option = document.createElement('option');
-            option.value = src;
-            option.textContent = 'Foto yang sudah digunakan';
-            imageSelect.appendChild(option);
-        }
-
-        imageSelect.value = src;
-    }
-
-    function preview() {
+    function preview(src) {
         if (!imagePreview) return;
-
-        const src = imageSelect ? imageSelect.value : '';
-
         imagePreview.replaceChildren();
-
         if (!src) {
-            imagePreview.textContent =
-                'Preview foto akan tampil di sini';
+            imagePreview.textContent = 'Preview foto akan tampil di sini';
             return;
         }
-
         const img = document.createElement('img');
         img.src = src;
         img.alt = 'Preview foto produk';
-
         img.onerror = () => {
-            imagePreview.textContent =
-                'Foto tidak dapat dimuat. Periksa URL gambar.';
+            imagePreview.textContent = 'Foto tidak dapat dimuat. Silakan pilih file lain.';
         };
-
         imagePreview.appendChild(img);
     }
 
-    if (imageSelect) {
-        imageSelect.addEventListener('change', preview);
+    if (imageInput) {
+        imageInput.addEventListener('change', () => {
+            const file = imageInput.files && imageInput.files[0];
+            if (!file) return;
+            if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+                imageInput.value = '';
+                toast('Format foto harus JPG, PNG, atau WebP.');
+                return;
+            }
+            if (file.size > MAX_IMAGE_SIZE) {
+                imageInput.value = '';
+                toast('Ukuran foto maksimal 5 MB.');
+                return;
+            }
+            imageHidden.value = '';
+            preview(URL.createObjectURL(file));
+        });
     }
 
-    if (refreshImagesButton) {
-        refreshImagesButton.addEventListener('click', async () => {
-            const previousValue = imageSelect.value;
-            const success = await loadGitHubImages();
+    async function uploadProductImage(file, productId) {
+        const client = window.rafveSupabase;
+        if (!client) throw new Error('Klien Supabase belum tersedia.');
+        if (!file) throw new Error('Pilih file foto terlebih dahulu.');
+        if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+            throw new Error('Format foto harus JPG, PNG, atau WebP.');
+        }
+        if (file.size > MAX_IMAGE_SIZE) {
+            throw new Error('Ukuran foto maksimal 5 MB.');
+        }
 
-            if (success && previousValue) {
-                ensureImageOption(previousValue);
-                preview();
-            }
+        const extensions = {
+            'image/jpeg': 'jpg',
+            'image/png': 'png',
+            'image/webp': 'webp'
+        };
+        const safeId = String(productId || 'product')
+            .toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+        const path = `${safeId}/${Date.now()}.${extensions[file.type]}`;
 
-            if (success) toast('Daftar foto berhasil diperbarui.');
-        });
+        const { error } = await client.storage
+            .from(STORAGE_BUCKET)
+            .upload(path, file, {
+                cacheControl: '3600',
+                upsert: false,
+                contentType: file.type
+            });
+        if (error) throw error;
+
+        const { data } = client.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+        if (!data?.publicUrl) throw new Error('URL publik foto tidak berhasil dibuat.');
+        return data.publicUrl;
     }
 
     // ==========================================
@@ -305,7 +238,6 @@
 
         form.reset();
 
-        await loadGitHubImages();
 
         const values = {
             originalId: p.id,
@@ -325,8 +257,9 @@
             form.elements[key].value = value ?? '';
         });
 
-        ensureImageOption(p.image);
-        preview();
+        imageHidden.value = p.image || '';
+        if (imageInput) imageInput.value = '';
+        preview(p.image || '');
 
         form.elements.active.checked = !!p.active;
         form.elements.isNew.checked = !!p.isNew;
@@ -350,12 +283,12 @@
 
         $('#form-title').textContent = 'Tambah Produk';
 
-        imagePreview.textContent =
-            'Preview foto akan tampil di sini';
+        imageHidden.value = '';
+        if (imageInput) imageInput.value = '';
+        preview('');
 
         dialog.showModal();
 
-        await loadGitHubImages();
     }
 
     $('#add-new').onclick = newProduct;
@@ -368,8 +301,15 @@
     // SIMPAN PRODUK
     // ==========================================
 
-    form.addEventListener('submit', e => {
+    form.addEventListener('submit', async e => {
         e.preventDefault();
+        const submitButton = form.querySelector('button[type="submit"]');
+        const oldButtonText = submitButton?.textContent;
+        if (submitButton) {
+            submitButton.disabled = true;
+            submitButton.textContent = 'Mengunggah dan menyimpan...';
+        }
+        try {
 
         const fd = new FormData(form);
 
@@ -381,7 +321,8 @@
         const price = Number(fd.get('price'));
         const sale = Number(fd.get('salePrice') || 0);
         const stock = Number(fd.get('stock'));
-        const image = String(fd.get('image') || '').trim();
+        let image = String(fd.get('image') || '').trim();
+        const imageFile = imageInput?.files?.[0] || null;
 
         if (
             !id ||
@@ -408,7 +349,8 @@
             return;
         }
 
-        if (!image) {
+        const existingProduct = RAFVE.getProducts().find(p => p.id === original);
+        if (!imageFile && !image && !existingProduct?.image) {
             toast('Pilih foto utama produk terlebih dahulu.');
             return;
         }
@@ -418,6 +360,18 @@
         if (ps.some(p => p.id === id && p.id !== original)) {
             toast('ID produk sudah digunakan.');
             return;
+        }
+
+        if (imageFile) {
+            try {
+                image = await uploadProductImage(imageFile, id);
+            } catch (uploadError) {
+                console.error('Gagal mengunggah foto:', uploadError);
+                toast('Foto gagal diunggah. Periksa login admin, bucket, dan policy Supabase.');
+                return;
+            }
+        } else if (!image && existingProduct) {
+            image = existingProduct.image || '';
         }
 
         const p = {
@@ -456,12 +410,13 @@
         if (RAFVE.saveProducts(ps)) {
             dialog.close();
             render();
-
-            toast(
-                original
-                    ? 'Perubahan produk disimpan.'
-                    : 'Produk baru berhasil disimpan.'
-            );
+            toast(original ? 'Perubahan produk disimpan.' : 'Produk baru berhasil disimpan.');
+        }
+        } finally {
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = oldButtonText || 'Simpan Produk';
+            }
         }
     });
 
@@ -605,7 +560,6 @@ $('#settings-form').addEventListener('submit', async e => {
 
     loadSettings();
     render();
-    loadGitHubImages();
 
     window.addEventListener('rafve:datachange', render);
 })();

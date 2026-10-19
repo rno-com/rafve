@@ -208,28 +208,18 @@
                 </label>
             </div>
 
-            <!-- Pilihan foto utama dari GitHub -->
-            <label for="product-image">
-                Foto utama produk
-            </label>
-
-            <div class="image-picker-controls">
-                <select name="image" id="product-image" required>
-                    <option value="">Memuat daftar foto GitHub...</option>
-                </select>
-
-                <button
-                    type="button"
-                    id="refresh-images"
-                    class="btn"
-                >
-                    Muat ulang foto
-                </button>
-            </div>
-
+            <label for="product-image-file">Foto utama produk</label>
+            <input
+                type="file"
+                id="product-image-file"
+                name="imageFile"
+                accept="image/jpeg,image/png,image/webp"
+            >
+            <input type="hidden" name="image" id="product-image">
             <p class="muted">
-                Pilih foto yang sudah diunggah ke folder
-                assets/images/ pada repository GitHub RAFVE.
+                Unggah foto JPG, PNG, atau WebP langsung dari perangkat.
+                Maksimal 5 MB. Foto disimpan di Supabase Storage.
+                Saat mengedit produk, pilih file baru hanya jika ingin mengganti foto.
             </p>
 
             <div
