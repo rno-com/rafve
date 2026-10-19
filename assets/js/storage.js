@@ -115,24 +115,33 @@
             sizes: Array.isArray(r.sizes) ? r.sizes : [],
             colors: Array.isArray(r.colors) ? r.colors : [],
             stock: Number(r.stock) || 0, active: r.active === true,
-            isNew: r.is_new === true, createdAt: Number(r.created_at) || Date.now()
+            isNew: r.is_new === true, createdAt: r.updated_at ? new Date(r.updated_at).getTime() : Date.now()
         };
     }
+    
     function productToDb(p) {
         return {
-            id: String(p.id), name: String(p.name || ''),
-            category: String(p.category || ''), description: String(p.description || ''),
-            price: Number(p.price) || 0, sale_price: Number(p.salePrice) || 0,
-            image: String(p.image || ''), gallery: p.gallery || [],
-            sizes: p.sizes || [], colors: p.colors || [], stock: Number(p.stock) || 0,
-            active: !!p.active, is_new: !!p.isNew,
-            created_at: Number(p.createdAt) || Date.now(), updated_at: new Date().toISOString()
+        id: String(p.id),
+        name: String(p.name || ''),
+        category: String(p.category || ''),
+        description: String(p.description || ''),
+        price: Number(p.price) || 0,
+        sale_price: Number(p.salePrice) || 0,
+        image: String(p.image || ''),
+        gallery: p.gallery || [],
+        sizes: p.sizes || [],
+        colors: p.colors || [],
+        stock: Number(p.stock) || 0,
+        active: !!p.active,
+        is_new: !!p.isNew,
+        updated_at: new Date().toISOString()
         };
     }
+
     async function loadProductsFromSupabase() {
         const client = window.rafveSupabase;
         if (!client) throw new Error('Klien Supabase tidak tersedia.');
-        const { data, error } = await client.from('products').select('*').order('created_at', { ascending: false });
+        const { data, error } = await client.from('products').select('*').order('updated_at', { ascending: false });
         if (error) throw error;
         const products = (data || []).map(dbToProduct);
         write(KEYS.products, products);
