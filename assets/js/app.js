@@ -241,6 +241,9 @@
         `
     };
 
+    // Beri tahu halaman lain bahwa RAFVEUI sudah tersedia.
+    window.dispatchEvent(new Event('rafve:ui-ready'));
+
     // ==========================================
     // PRODUK AKTIF
     // ==========================================
