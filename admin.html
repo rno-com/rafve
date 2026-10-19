@@ -19,7 +19,44 @@
         <a href="index.html" class="text-link">← Kembali ke website</a>
     </header>
 
-    <main class="admin-wrap">
+    <section id="admin-login" class="admin-wrap">
+    <div class="section-heading">
+        <div>
+            <p class="eyebrow">RAFVE STORE MANAGEMENT</p>
+            <h1>Login Admin</h1>
+            <p>Masuk untuk mengelola produk dan pengaturan toko.</p>
+        </div>
+    </div>
+
+    <form id="admin-login-form" class="admin-form">
+        <label>
+            Email admin
+            <input
+                type="email"
+                name="email"
+                autocomplete="username"
+                required
+            >
+        </label>
+
+        <label>
+            Password
+            <input
+                type="password"
+                name="password"
+                autocomplete="current-password"
+                required
+            >
+        </label>
+
+        <button type="submit" class="btn">
+            Login
+        </button>
+
+        <p id="login-message" class="muted" role="status"></p>
+    </form>
+    </section>
+    <main id="admin-dashboard" class="admin-wrap hidden">
         <div class="section-heading">
             <div>
                 <p class="eyebrow">STORE MANAGEMENT</p>
@@ -244,9 +281,11 @@
 
     <div id="toast" class="toast" role="status"></div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="assets/js/supabase-client.js"></script>
     <script src="assets/js/products.js"></script>
     <script src="assets/js/storage.js"></script>
-    <script src="assets/js/admin.js"></script>
+    <script src="assets/js/admin-auth.js"></script>
 </body>
 
 </html>

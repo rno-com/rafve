@@ -1,1 +1,47 @@
-<!doctype html><html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Koleksi — RAFVE</title><meta name="description" content="Jelajahi koleksi modest fashion RAFVE."><link rel="stylesheet" href="assets/css/style.css"><link rel="stylesheet" href="assets/css/responsive.css"></head><body><div id="site-header"></div><main class="page-wrap"><div class="section-heading"><div><p class="eyebrow">RAFVE COLLECTION</p><h1>Koleksi pilihan</h1></div><span id="result-count" class="muted"></span></div><div class="filters"><input id="search" placeholder="Cari produk…" aria-label="Cari produk"><select id="category"><option value="">Semua kategori</option></select><select id="size"><option value="">Semua ukuran</option></select><select id="color"><option value="">Semua warna</option></select><select id="sort"><option value="newest">Produk terbaru</option><option value="low">Harga terendah</option><option value="high">Harga tertinggi</option><option value="name">Nama A–Z</option></select><button class="btn btn-light" id="reset">Reset filter</button></div><div id="catalog" class="product-grid"></div><p id="empty" class="empty hidden">Produk tidak ditemukan. Coba ubah kata kunci atau filter.</p></main><div id="site-footer"></div><script src="assets/js/products.js"></script><script src="assets/js/storage.js"></script><script src="assets/js/app.js"></script><script src="assets/js/catalog.js"></script></body></html>
+<!doctype html>
+<html lang="id">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Koleksi — RAFVE</title>
+    <meta name="description" content="Jelajahi koleksi modest fashion RAFVE.">
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/responsive.css">
+</head>
+
+<body>
+    <div id="site-header"></div>
+    <main class="page-wrap">
+        <div class="section-heading">
+            <div>
+                <p class="eyebrow">RAFVE COLLECTION</p>
+                <h1>Koleksi pilihan</h1>
+            </div><span id="result-count" class="muted"></span>
+        </div>
+        <div class="filters"><input id="search" placeholder="Cari produk…" aria-label="Cari produk"><select
+                id="category">
+                <option value="">Semua kategori</option>
+            </select><select id="size">
+                <option value="">Semua ukuran</option>
+            </select><select id="color">
+                <option value="">Semua warna</option>
+            </select><select id="sort">
+                <option value="newest">Produk terbaru</option>
+                <option value="low">Harga terendah</option>
+                <option value="high">Harga tertinggi</option>
+                <option value="name">Nama A–Z</option>
+            </select><button class="btn btn-light" id="reset">Reset filter</button></div>
+        <div id="catalog" class="product-grid"></div>
+        <p id="empty" class="empty hidden">Produk tidak ditemukan. Coba ubah kata kunci atau filter.</p>
+    </main>
+    <div id="site-footer"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="assets/js/supabase-client.js"></script>
+    <script src="assets/js/products.js"></script>
+    <script src="assets/js/storage.js"></script>
+    <script src="assets/js/app.js"></script>
+    <script src="assets/js/catalog.js"></script>
+</body>
+
+</html>

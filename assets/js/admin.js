@@ -469,38 +469,73 @@
     // PENGATURAN TOKO
     // ==========================================
 
-    $('#settings-form').addEventListener('submit', e => {
-        e.preventDefault();
+    $('#settings-form').addEventListener('submit', async e => {
+    e.preventDefault();
 
-        const f = e.currentTarget;
-        const n = 6285736607893;
+    const f = e.currentTarget;
+    const button = f.querySelector('button[type="submit"]');
+    const oldText = button?.textContent;
+
+    if (button) {
+        button.disabled = true;
+        button.textContent = 'Menyimpan...';
+    }
+
+    try {
         const low = Number(f.elements.lowStock.value);
 
-        if (n && !RAFVE.validWhatsApp(n)) {
-            toast('Nomor WhatsApp harus format 62xxxxxxxxxx tanpa tanda baca.');
-            return;
-        }
-
         if (!Number.isInteger(low) || low < 0) {
-            toast('Batas stok rendah harus bilangan bulat nonnegatif.');
+            toast('Batas stok harus bilangan bulat nonnegatif.');
             return;
         }
 
-        RAFVE.saveSettings({
+        const settings = {
             storeName: f.elements.storeName.value.trim() || 'RAFVE',
             tagline: f.elements.tagline.value.trim(),
             announcement: f.elements.announcement.value.trim(),
-            instagram: f.elements.instagram.value.trim() ||
-                'https://www.instagram.com/rafve.id/',
-            whatsapp: n,
+            instagram: f.elements.instagram.value.trim()
+                || 'https://www.instagram.com/rafve.id/',
+            whatsapp: '6285736607893',
             greeting: f.elements.greeting.value.trim(),
             lowStock: low,
             whatsappEnabled: f.elements.whatsappEnabled.checked
-        });
+        };
 
-        toast('Pengaturan toko disimpan di browser ini.');
+        const client = window.rafveSupabase;
+
+        if (!client) {
+            throw new Error('Klien Supabase belum tersedia.');
+        }
+
+        const { error } = await client
+            .from('store_settings')
+            .upsert(
+                {
+                    id: 1,
+                    data: settings,
+                    updated_at: new Date().toISOString()
+                },
+                { onConflict: 'id' }
+            );
+
+        if (error) throw error;
+
+        // Perbarui salinan lokal hanya setelah penyimpanan database berhasil.
+        RAFVE.saveSettings(settings);
+
+        toast('Pengaturan toko berhasil disimpan ke Supabase.');
         render();
-    });
+
+    } catch (error) {
+        console.error('Gagal menyimpan pengaturan:', error);
+        toast('Gagal menyimpan. Periksa Console dan izin database.');
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.textContent = oldText || 'Simpan Pengaturan';
+        }
+    }
+});
 
     function loadSettings() {
         const s = RAFVE.getSettings();
