@@ -469,7 +469,7 @@
     // PENGATURAN TOKO
     // ==========================================
 
-    $('#settings-form').addEventListener('submit', async e => {
+$('#settings-form').addEventListener('submit', async e => {
     e.preventDefault();
 
     const f = e.currentTarget;
@@ -483,9 +483,18 @@
 
     try {
         const low = Number(f.elements.lowStock.value);
+        const whatsapp = f.elements.whatsapp.value.trim();
 
         if (!Number.isInteger(low) || low < 0) {
             toast('Batas stok harus bilangan bulat nonnegatif.');
+            return;
+        }
+
+        if (
+            f.elements.whatsappEnabled.checked &&
+            !RAFVE.validWhatsApp(whatsapp)
+        ) {
+            toast('Nomor WhatsApp tidak valid. Gunakan format 62, tanpa tanda + atau spasi.');
             return;
         }
 
@@ -495,7 +504,7 @@
             announcement: f.elements.announcement.value.trim(),
             instagram: f.elements.instagram.value.trim()
                 || 'https://www.instagram.com/rafve.id/',
-            whatsapp: '6285736607893',
+            whatsapp: whatsapp,
             greeting: f.elements.greeting.value.trim(),
             lowStock: low,
             whatsappEnabled: f.elements.whatsappEnabled.checked
@@ -509,18 +518,16 @@
 
         const { error } = await client
             .from('store_settings')
-            .upsert(
-                {
-                    id: 1,
-                    data: settings,
-                    updated_at: new Date().toISOString()
-                },
-                { onConflict: 'id' }
-            );
+            .upsert({
+                id: 1,
+                data: settings,
+                updated_at: new Date().toISOString()
+            }, {
+                onConflict: 'id'
+            });
 
         if (error) throw error;
 
-        // Perbarui salinan lokal hanya setelah penyimpanan database berhasil.
         RAFVE.saveSettings(settings);
 
         toast('Pengaturan toko berhasil disimpan ke Supabase.');
@@ -528,7 +535,7 @@
 
     } catch (error) {
         console.error('Gagal menyimpan pengaturan:', error);
-        toast('Gagal menyimpan. Periksa Console dan izin database.');
+        toast('Gagal menyimpan pengaturan. Periksa Console.');
     } finally {
         if (button) {
             button.disabled = false;
@@ -537,20 +544,42 @@
     }
 });
 
-    function loadSettings() {
-        const s = RAFVE.getSettings();
-        const f = $('#settings-form');
+    async function loadSettings() {
+    const f = $('#settings-form');
+    const client = window.rafveSupabase;
 
-        Object.entries(s).forEach(([key, value]) => {
-            if (f.elements[key]) {
-                if (f.elements[key].type === 'checkbox') {
-                    f.elements[key].checked = !!value;
-                } else {
-                    f.elements[key].value = value;
-                }
-            }
-        });
+    if (!f || !client) return;
+
+    const { data, error } = await client
+        .from('store_settings')
+        .select('data')
+        .eq('id', 1)
+        .maybeSingle();
+
+    if (error) {
+        console.error('Gagal memuat pengaturan:', error);
+        return;
     }
+
+    const s = {
+        ...RAFVE.getSettings(),
+        ...(data?.data || {})
+    };
+
+    RAFVE.saveSettings(s);
+
+    Object.entries(s).forEach(([key, value]) => {
+        const input = f.elements[key];
+
+        if (!input) return;
+
+        if (input.type === 'checkbox') {
+            input.checked = Boolean(value);
+        } else {
+            input.value = value ?? '';
+        }
+    });
+}
 
     // ==========================================
     // TAB DAN INISIALISASI
