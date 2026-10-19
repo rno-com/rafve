@@ -1,14 +1,34 @@
-(function () {
+
+(async function () {
     const $ = s => document.querySelector(s);
 
-    // Pengaturan toko
-    // Nomor WhatsApp ditetapkan langsung agar konsisten
-    // di semua browser dan perangkat pelanggan.
-    const settings = {
-        ...RAFVE.getSettings(),
-        whatsapp: '6285736607893',
-        whatsappEnabled: true
-    };
+    // ==========================================
+    // MEMUAT PENGATURAN TOKO DARI SUPABASE
+    // ==========================================
+
+    let settings = RAFVE.getSettings();
+
+    try {
+        if (typeof RAFVE.loadSettingsFromSupabase === 'function') {
+            const remoteSettings = await RAFVE.loadSettingsFromSupabase();
+
+            if (remoteSettings) {
+                settings = {
+                    ...settings,
+                    ...remoteSettings
+                };
+            }
+        }
+    } catch (error) {
+        console.error('Gagal memuat pengaturan toko:', error);
+    }
+
+    // Nomor WhatsApp dan status aktif mengikuti pengaturan admin.
+    // Tidak ada nomor WhatsApp yang dipaksakan di file ini.
+
+    // ==========================================
+    // HEADER WEBSITE
+    // ==========================================
 
     const header = $('#site-header');
 
@@ -54,10 +74,21 @@
         `;
     }
 
-    // Footer website
+    // ==========================================
+    // FOOTER WEBSITE
+    // ==========================================
+
     const footer = $('#site-footer');
 
     if (footer) {
+        const validWhatsApp =
+            settings.whatsappEnabled === true &&
+            RAFVE.validWhatsApp(settings.whatsapp);
+
+        const whatsappUrl = validWhatsApp
+            ? `https://wa.me/${encodeURIComponent(settings.whatsapp)}`
+            : '';
+
         footer.innerHTML = `
             <footer class="site-footer">
                 <div>
@@ -70,7 +101,6 @@
                 <div>
                     <strong>Jelajahi</strong>
                     <a href="products.html">Semua koleksi</a>
-                    <a href="admin.html">Admin demo</a>
                 </div>
 
                 <div>
@@ -82,26 +112,25 @@
                             'https://www.instagram.com/rafve.id/'
                         )}"
                         target="_blank"
-                        rel="noopener"
+                        rel="noopener noreferrer"
                     >
                         Instagram RAFVE ↗
                     </a>
 
                     ${
-                        settings.whatsappEnabled &&
-                        RAFVE.validWhatsApp(settings.whatsapp)
+                        validWhatsApp
                             ? `
                                 <a
-                                    href="https://wa.me/6285736607893"
+                                    href="${whatsappUrl}"
                                     target="_blank"
-                                    rel="noopener"
+                                    rel="noopener noreferrer"
                                 >
                                     WhatsApp toko ↗
                                 </a>
                             `
                             : `
                                 <span class="muted">
-                                    WhatsApp belum dikonfigurasi
+                                    WhatsApp belum tersedia
                                 </span>
                             `
                     }
@@ -109,19 +138,22 @@
 
                 <div class="footer-bottom">
                     © ${new Date().getFullYear()} RAFVE.
-                    Prototype katalog; data demo disimpan di browser.
+                    Modest fashion for everyday moments.
                 </div>
             </footer>
         `;
     }
 
-    // Memperbarui jumlah produk di keranjang
+    // ==========================================
+    // JUMLAH PRODUK DI KERANJANG
+    // ==========================================
+
     function updateCount() {
         const el = $('#cart-count');
 
         if (el) {
             el.textContent = RAFVE.getCart().reduce(
-                (n, x) => n + (Number(x.qty) || 0),
+                (n, item) => n + (Number(item.qty) || 0),
                 0
             );
         }
@@ -129,18 +161,24 @@
 
     updateCount();
 
-    // Menu navigasi untuk perangkat seluler
+    // ==========================================
+    // MENU NAVIGASI MOBILE
+    // ==========================================
+
     document.addEventListener('click', e => {
         if (e.target.closest('#menu-toggle')) {
             $('.main-nav')?.classList.toggle('nav-open');
         }
     });
 
-    // Memperbarui keranjang ketika data berubah
+    // Perbarui jumlah keranjang saat data berubah.
     window.addEventListener('rafve:datachange', updateCount);
     window.addEventListener('storage', updateCount);
 
-    // Fungsi untuk kartu produk
+    // ==========================================
+    // KOMPONEN KARTU PRODUK
+    // ==========================================
+
     window.RAFVEUI = {
         productCard: p => `
             <article class="product-card">
@@ -162,7 +200,8 @@
                     }
 
                     ${
-                        p.salePrice > 0 && p.salePrice < p.price
+                        Number(p.salePrice) > 0 &&
+                        Number(p.salePrice) < Number(p.price)
                             ? '<span class="product-badge sale">SALE</span>'
                             : ''
                     }
@@ -183,7 +222,7 @@
                     <div class="product-price">
                         ${RAFVE.money(RAFVE.effectivePrice(p))}
                         ${
-                            RAFVE.effectivePrice(p) < p.price
+                            RAFVE.effectivePrice(p) < Number(p.price)
                                 ? ` <del>${RAFVE.money(p.price)}</del>`
                                 : ''
                         }
@@ -200,13 +239,16 @@
         `
     };
 
-    // Produk aktif
+    // ==========================================
+    // PRODUK AKTIF
+    // ==========================================
+
     const products = RAFVE.getProducts().filter(p => p.active);
 
-    const hp = $('#home-products');
+    const homeProducts = $('#home-products');
 
-    if (hp) {
-        hp.innerHTML = products
+    if (homeProducts) {
+        homeProducts.innerHTML = products
             .slice()
             .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
             .slice(0, 4)
@@ -214,28 +256,34 @@
             .join('');
     }
 
-    // Kategori di halaman utama
-    const cats = $('#home-categories');
+    // ==========================================
+    // KATEGORI HALAMAN UTAMA
+    // ==========================================
 
-    if (cats) {
+    const categories = $('#home-categories');
+
+    if (categories) {
         const list = [
             ...new Set(products.map(p => p.category))
         ].slice(0, 4);
 
-        cats.innerHTML = list
-            .map((c, i) => `
+        categories.innerHTML = list
+            .map((category, i) => `
                 <a
                     class="category-tile tile-${i % 4}"
-                    href="products.html?category=${encodeURIComponent(c)}"
+                    href="products.html?category=${encodeURIComponent(category)}"
                 >
-                    <span>${RAFVE.escape(c)}</span>
+                    <span>${RAFVE.escape(category)}</span>
                     <span>Jelajahi ↗</span>
                 </a>
             `)
             .join('');
     }
 
-    // Cerita brand
+    // ==========================================
+    // CERITA BRAND
+    // ==========================================
+
     const story = $('#brand-story');
 
     if (story && settings.tagline) {
